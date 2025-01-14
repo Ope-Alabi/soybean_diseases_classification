@@ -1,0 +1,23 @@
+EVALUATING MODEL 
+Accuracy of the network = 63.59%
+Accuracy of bacterial_blight: 0.00%
+Accuracy of cercospora_leaf_blight: 65.56%
+Accuracy of downey_mildew: 33.85%
+Accuracy of frogeye: 38.89%
+Accuracy of healthy: 77.42%
+Accuracy of potassium_deficiency: 90.82%
+Accuracy of soybean_rust: 97.42%
+Accuracy of target_spot: 45.71%
+	bacterial_blight	cercospora_leaf_blight	downey_mildew	frogeye	healthy	potassium_deficiency	soybean_rust	target_spot
+bacterial_blight	0	2	0	1	0	0	43	1
+cercospora_leaf_blight	0	99	0	15	7	1	27	2
+downey_mildew	0	0	22	2	25	5	0	11
+frogeye	0	29	1	56	36	2	14	6
+healthy	0	5	7	14	120	4	2	3
+potassium_deficiency	0	0	0	6	1	89	0	2
+soybean_rust	0	2	0	0	0	0	151	2
+target_spot	0	8	9	2	11	17	10	48
+
+Precision: 0.5545
+Recall: 0.5621
+F1 Score: 0.5429
