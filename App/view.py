@@ -5,7 +5,6 @@ from torch.optim import lr_scheduler
 import torch.nn.functional as F
 import torchvision
 from torchvision import datasets, models, transforms
-from torchinfo import summary
 
 import streamlit as st
 
@@ -18,23 +17,58 @@ from PIL import Image
 import numpy as np
 import matplotlib.pyplot as plt
 
+# implementation of langchain and groq
+from langchain_groq import ChatGroq
+from langchain.prompts.chat import ChatPromptTemplate
+
+# Set the GROQ API key
+GROQ_API_KEY = os.getenv('GROQ_API_KEY')
+
+# Define the prompt for generating IPM treatment output
+DISEASES_RECOMMENDATION_PROMPT = """
+Your role is a plant disease expert, the given disease has already be verified, generate IPM [Integrated Pest Management] treatment output using the template below. 
+
+[INFORMATION ABOUT PLANT]
+Crop name: {CROP_NAME}
+Location: {CROP_LOCATION}
+Season: {CROP_SEASON}
+Verified disease: {CROP_VERIFIED_DISEASE} 
+
+### OUTPUT TEMPLATE ###
+[INSERT A NUMBERED LIST OF TREATMENT OPTIONS]
+[CREATE A STEP BY STEP APPLICATION FOR THE 1ST OPTION]
+[INSERT A NUMBERED LIST OF IPM TREATMENT OPTIONS]
+[CREATE A STEP BY STEP APPLICATION FOR THE 1ST OPTION]
+[CITE YOUR TREATMENT INFORMATION]
+
+Examples:
+
+Your role is a plant disease expert; the given disease has already been verified. Generate IPM [Integrated Pest Management] treatment output using the template below.
+
+<INFORMATION ABOUT PLANT>
+Crop name: (Soybean)
+Location: (North Carolina)
+Season: (Dry)
+Verified disease: (Cercospora leaf blight)
+
+### OUTPUT TEMPLATE ###
+<INSERT A NUMBERED LIST OF TREATMENT OPTIONS>
+<CREATE A STEP-BY-STEP APPLICATION FOR THE 1ST OPTION>
+<INSERT A NUMBERED LIST OF IPM TREATMENT OPTIONS>
+<CREATE A STEP-BY-STEP APPLICATION FOR THE 1ST OPTION>
+<CITE YOUR TREATMENT INFORMATION>
+"""
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-# loading the class names
-# class_indices = json.load(open("/Users/oalabi1/Library/CloudStorage/OneDrive-UniversityofNorthCarolinaatCharlotte/Personal Projects/Machine Learning/soybean_diseases_classification/App/class_indices.json"))
-class_indices = json.load(open("C:/Users/alabi/OneDrive - University of North Carolina at Charlotte/Personal Projects/Machine Learning/soybean_diseases_classification/App/class_indices.json"))
-num_classes = len(class_indices)
+# Load the class indices
 
-# Load class names from JSON file
-# with open("/Users/oalabi1/Library/CloudStorage/OneDrive-UniversityofNorthCarolinaatCharlotte/Personal Projects/Machine Learning/soybean_diseases_classification/App/class_indices.json", 'r') as f:
-#     class_names = json.load(f)
+class_indices = json.load(open(r"C:\Users\alvaj\Documents\soybean_diseases_classification\App\class_indices.json"))
+num_classes = len(class_indices) 
 
-with open("C:/Users/alabi/OneDrive - University of North Carolina at Charlotte/Personal Projects/Machine Learning/soybean_diseases_classification/App/class_indices.json", 'r') as f:
+# Load the class names
+with open(r"C:\Users\alvaj\Documents\soybean_diseases_classification\App\class_indices.json", 'r') as f:
     class_names = json.load(f)
-
-
-
 
 # Load the model architecture
 model = models.densenet201(weights=None).to(device)
@@ -42,10 +76,8 @@ model = models.densenet201(weights=None).to(device)
 # Load the pre-trained weights
 # model_path = "C:/Users/alabi/OneDrive - University of North Carolina at Charlotte/Personal Projects/Machine Learning/Plant Disease Prediction/model_training/base_models/ResNet50-Plant-model-80.pth"
 # model_path = "/Users/oalabi1/Library/CloudStorage/OneDrive-UniversityofNorthCarolinaatCharlotte/Personal Projects/Machine Learning/soybean_diseases_classification/OUTPUT/OUTPUT/SAVED_MODELS/densenet201_model[pddd=False,frozen=False,pretrained=True].pth"
-model_path = "C:/Users/alabi/OneDrive - University of North Carolina at Charlotte/Personal Projects/Machine Learning/soybean_diseases_classification/OUTPUT/OUTPUT/SAVED_MODELS/densenet201_model[pddd=False,frozen=False,pretrained=True].pth"
-
+model_path = r"C:\Users\alvaj\Documents\soybean_diseases_classification\OUTPUT\densenet201_model[pddd=False,frozen=False,pretrained=True].pth"
 state_dict = torch.load(model_path, map_location=device)
-
 
 # Extract weights and biases for each layer in the classifier
 fc0_weight = state_dict.pop('classifier.0.weight', None)
@@ -87,60 +119,10 @@ if fc6_weight is not None and fc6_bias is not None:
 for param in model.parameters():
     param.requires_grad = False
 
-
-
-
-
-
-
-
-# # Step 1: Load the pretrained DenseNet model
-# # model = models.densenet201(pretrained=False)
-# model = models.densenet201(weights=None).to(device)
-
-# # Load the model's state_dict
-# model_path = "/Users/oalabi1/Library/CloudStorage/OneDrive-UniversityofNorthCarolinaatCharlotte/Personal Projects/Machine Learning/soybean_diseases_classification/OUTPUT/OUTPUT/SAVED_MODELS/densenet201_model[pddd=False,frozen=False,pretrained=True].pth"
-# # state_dict = torch.load(model_path, map_location='cpu')
-# state_dict = torch.load(model_path, map_location=device)
-
-# # Step 2: Modify the classifier layer
-# num_classes = 8
-# model.classifier = nn.Sequential(
-#     nn.Linear(in_features=model.classifier.in_features, out_features=128, bias=True),
-#     nn.ReLU(inplace=True),
-#     nn.Dropout(p=0.2),
-#     nn.Linear(in_features=128, out_features=64, bias=True),
-#     nn.ReLU(inplace=True),
-#     nn.Dropout(p=0.3),
-#     nn.Linear(in_features=64, out_features=num_classes, bias=True)  # Replace with your number of output classes
-# )
-
-# # Step 3: Load the pretrained state_dict, but ignore the classifier weights
-# # This method allows you to load the state_dict while ignoring layers that don't match
-# model_dict = model.state_dict()
-# pretrained_dict = {k: v for k, v in state_dict.items() if k in model_dict and "classifier" not in k}
-# model_dict.update(pretrained_dict)
-# model.load_state_dict(model_dict)
-
-# # Optionally freeze model parameters
-# for param in model.parameters():
-#     param.requires_grad = False
-
-
 # Move the model to the appropriate device
 model.to(device)
 
-# # Print a summary of the model
-# summary(model=model,
-#         input_size=(32, 3, 224, 224),
-#         col_names=["input_size", "output_size", "num_params", "trainable"],
-#         col_width=20,
-#         row_settings=["var_names"])
-
-# print(summary)
-
 model.eval()
-
 
 # Define the data transformation
 mean = np.array([0.416, 0.468, 0.355]) # From the PDDD paper. Why was this chosen?
@@ -153,6 +135,28 @@ data_transforms = transforms.Compose([
     transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
 ])
 
+# Gerenate IPM treatment output
+def generate_treatment_output(crop_name, crop_location, crop_season, crop_verified_disease):
+    # Initialize the ChatGroq object
+    llm = ChatGroq(api_key=GROQ_API_KEY, model="mixtral-8x7b-32768", temperature=0.5)
+    
+    # Initialize the ChatPromptTemplate object
+    chat_prompt_template = ChatPromptTemplate(
+        prompt=DISEASES_RECOMMENDATION_PROMPT,
+        messages=[{"role": "system", "content": DISEASES_RECOMMENDATION_PROMPT}]
+    )
+    
+    query = chat_prompt_template.format(CROP_NAME=crop_name,
+        CROP_LOCATION=crop_location,
+        CROP_SEASON=crop_season,
+        CROP_VERIFIED_DISEASE=crop_verified_disease)
+    
+    # Generate the IPM treatment output
+    ipm_treatment_output = llm.invoke(query)
+    
+    return ipm_treatment_output.content if ipm_treatment_output.content else "No treatment available"
+
+
 # Load and preprocess the image
 def preprocess_img(image_path):
     # image_path = 'path_to_your_image.jpg'
@@ -162,53 +166,6 @@ def preprocess_img(image_path):
     image = image.unsqueeze(0)  # Add batch dimension
     image = image.to(device)
     return image
-
-# def predict_image_class (model, path, class_names):
-#     # Make the prediction
-#     image = preprocess_img(path)
-#     with torch.no_grad():
-#         outputs = model(image)
-#         print(outputs)
-#         print(outputs.shape)
-
-#         # Apply softmax to get the probabilities
-#         probabilities = F.softmax(outputs, dim=1)
-        
-#         # Get the predicted class index and its probability
-#         max_prob, preds = torch.max(probabilities, 1) # value and index
-#         # print(preds)
-#         print(max_prob, probabilities)
-
-#         # Get the predicted class
-#         predicted_class = preds.item()
-#         predicted_class_name = class_indices[str(predicted_class)]
-
-#         # Convert max_prob to a percentage
-#         confidence_score = max_prob.item() * 100
-
-#         return predicted_class_name, confidence_score
-
-
-# # Streamlit App
-# st.title('Plant Disease Classifier')
-
-# uploaded_image = st.file_uploader("Upload an image...", type=["jpg", "jpeg", "png"])
-
-# if uploaded_image is not None:
-#     image = Image.open(uploaded_image)
-#     col1, col2 = st.columns(2)
-
-#     with col1:
-#         resized_img = image.resize((150, 150))
-#         st.image(resized_img)
-
-#     with col2:
-#         if st.button('Classify'):
-#             # Preprocess the uploaded image and predict the class
-#             prediction, conf_score = predict_image_class(model, uploaded_image, class_indices)
-#             st.success(f'Prediction: {str(prediction)} ({str(conf_score)})')
-
-
 
 def predict_image_class(model, path, class_names):
     # Preprocess the image
@@ -229,23 +186,44 @@ def predict_image_class(model, path, class_names):
         
         return top3_predictions
 
-st.title('Plant Disease Classifier')
 
-uploaded_image = st.file_uploader("Upload an image...", type=["jpg", "jpeg", "png"])
+def main(): 
+    st.title('Soybean Plant Disease Classifier 🌿')
 
-if uploaded_image is not None:
-    image = Image.open(uploaded_image)
-    col1, col2 = st.columns(2)
+    uploaded_image = st.file_uploader("Upload an image...", type=["jpg", "jpeg", "png"])
 
-    with col1:
-        resized_img = image.resize((150, 150))
-        st.image(resized_img)
+    # ask for the location, season, and verified disease
+    crop_location = st.text_input("Enter the location of the plant:")
+    crop_season = st.selectbox("Select the season:", ["Dry", "Wet", "Spring", "Summer", "Fall", "Winter"])
+    
+    
+    if uploaded_image is not None and crop_location and crop_season:
+        image = Image.open(uploaded_image)
+        col1, col2 = st.columns(2)
 
-    with col2:
-        if st.button('Classify'):
-            # Preprocess the uploaded image and predict the class
-            top3_predictions = predict_image_class(model, uploaded_image, class_names)
+        with col1:
+            resized_img = image.resize((150, 150))
+            st.image(resized_img)
+
+        with col2:
+            top3_predictions = None
+            ipm_treatment_output = None
             
-            # Display the top 3 predictions and their confidence scores
-            for i, (pred, conf_score) in enumerate(top3_predictions):
-                st.success(f'Top {i+1} Prediction: {pred} ({conf_score:.2f}%)')
+            if st.button('Classify'):
+                st.session_state.top3_predictions = predict_image_class(model, uploaded_image, class_names)
+                for i, (pred, conf_score) in enumerate(st.session_state.top3_predictions):
+                    st.success(f'Top {i+1} Prediction: {pred} ({conf_score:.2f}%)')
+
+        # Ensure top3_predictions exists in session state before generating treatment output
+        if ("top3_predictions" in st.session_state 
+                and st.session_state.top3_predictions 
+                and st.session_state.top3_predictions[0][0].lower() != "healthy"):
+            if st.button('Generate Treatment Output'):
+                crop_name = "Soybean"
+                crop_verified_disease = st.session_state.top3_predictions[0][0]
+                ipm_treatment_output = generate_treatment_output(crop_name, crop_location, crop_season, crop_verified_disease)
+                st.write(ipm_treatment_output)
+        
+if __name__ == '__main__':
+    print(GROQ_API_KEY)
+    main()
